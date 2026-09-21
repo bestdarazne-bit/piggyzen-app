@@ -26,7 +26,7 @@ jobs:
           channel: 'stable'
 
       - name: Re-create Android project files
-        run: flutter create . --platforms=android --org=com.piggyzen
+        run: flutter create . --platforms=android --org=com.piggyzen --project-name=piggyzen
 
       - name: Install dependencies
         run: flutter pub get
@@ -39,4 +39,4 @@ jobs:
         with:
           name: piggyzen-app
           path: build/app/outputs/flutter-apk/app-release.apk
-         
+          
