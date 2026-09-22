@@ -1,80 +1,83 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'theme.dart';
 
-/// Linh vật heo: vui = nhún nhảy nhẹ, giận = rung + phủ đỏ + 😡.
-class PigMascot extends StatefulWidget {
+/// Heo đất — cute, pastel, KHÔNG chạy animation liên tục khi user không
+/// tương tác. Chỉ nhún một lần khi [bounceTick] đổi (cất tiền thành công)
+/// hoặc ăn mừng ngắn khi [celebrateTick] đổi (đạt mục tiêu).
+class PigMascot extends StatelessWidget {
   final bool angry;
   final int bounceTick;
+  final int celebrateTick;
   final double size;
-  const PigMascot({super.key, required this.angry, required this.bounceTick, this.size = 170});
-
-  @override
-  State<PigMascot> createState() => _PigMascotState();
-}
-
-class _PigMascotState extends State<PigMascot> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
+  const PigMascot({
+    super.key,
+    required this.angry,
+    required this.bounceTick,
+    this.celebrateTick = 0,
+    this.size = 150,
+  });
 
   @override
   Widget build(BuildContext context) {
     Widget img = ClipRRect(
-      borderRadius: BorderRadius.circular(36),
-      child: Image.asset('assets/images/avatar.jpg', width: widget.size, height: widget.size, fit: BoxFit.cover),
+      borderRadius: BorderRadius.circular(32),
+      child: Image.asset('assets/images/avatar.jpg', width: size, height: size, fit: BoxFit.cover),
     );
-    if (widget.angry) {
+    if (angry) {
       img = ColorFiltered(
-        colorFilter: const ColorFilter.mode(Color.fromRGBO(255, 0, 0, 0.28), BlendMode.srcATop),
+        colorFilter: const ColorFilter.mode(Color.fromRGBO(229, 57, 53, 0.26), BlendMode.srcATop),
         child: img,
       );
     }
 
-    final bounced = TweenAnimationBuilder<double>(
-      key: ValueKey(widget.bounceTick),
+    // Nhún nhẹ MỘT LẦN mỗi khi bounceTick thay đổi (ví dụ vừa cất tiền).
+    Widget bounced = TweenAnimationBuilder<double>(
+      key: ValueKey('bounce_$bounceTick'),
       tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 600),
-      builder: (_, v, child) => Transform.scale(scale: 1 + 0.18 * sin(pi * v), child: child),
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOutBack,
+      builder: (_, v, child) {
+        return Transform.scale(scale: bounceTick == 0 ? 1.0 : 0.9 + 0.1 * v, child: child);
+      },
       child: img,
     );
 
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, child) {
-        final t = _c.value;
-        final dx = widget.angry ? sin(t * 2 * pi * 8) * 4 : 0.0;
-        final dy = widget.angry ? 0.0 : sin(t * 2 * pi) * 6;
-        return Transform.translate(offset: Offset(dx, dy), child: child);
+    // Ăn mừng ngắn khi đạt mục tiêu: nảy lên + xoay nhẹ, chỉ chạy 1 lần.
+    Widget celebrated = TweenAnimationBuilder<double>(
+      key: ValueKey('celebrate_$celebrateTick'),
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 800),
+      curve: Curves.elasticOut,
+      builder: (_, v, child) {
+        if (celebrateTick == 0) return child!;
+        return Transform.translate(
+          offset: Offset(0, -14 * (1 - v)),
+          child: Transform.rotate(angle: (1 - v) * 0.12, child: child),
+        );
       },
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          bounced,
-          Positioned(
-            right: -6,
-            top: -6,
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: widget.angry ? kDanger : kHotPink,
-                shape: BoxShape.circle,
-              ),
-              child: Text(widget.angry ? '😡' : '😊', style: const TextStyle(fontSize: 22)),
-            ),
+      child: bounced,
+    );
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        celebrated,
+        Positioned(
+          right: -4,
+          top: -4,
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: angry ? kDanger : kHotPink, shape: BoxShape.circle),
+            child: Text(angry ? '😡' : (celebrateTick > 0 ? '🎉' : '😊'), style: const TextStyle(fontSize: 20)),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-/// Animation đồng xu rơi vào heo.
+/// Animation đồng xu rơi khi cất tiền thành công — chạy một lần rồi tự dọn,
+/// không lặp, không tốn tài nguyên khi không có sự kiện.
 void showCoinDrop(BuildContext context) {
   final overlay = Overlay.of(context);
   late OverlayEntry entry;
@@ -92,21 +95,18 @@ class _CoinDrop extends StatelessWidget {
     return IgnorePointer(
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 900),
+        duration: const Duration(milliseconds: 800),
         curve: Curves.easeIn,
         onEnd: onDone,
         builder: (_, v, __) {
           return Stack(
             children: [
               Positioned(
-                left: size.width / 2 - 24,
-                top: size.height * 0.08 + v * size.height * 0.2,
+                left: size.width / 2 - 22,
+                top: size.height * 0.1 + v * size.height * 0.18,
                 child: Opacity(
                   opacity: (1 - v * v).clamp(0.0, 1.0).toDouble(),
-                  child: Transform.rotate(
-                    angle: v * 6,
-                    child: const Text('🪙', style: TextStyle(fontSize: 48)),
-                  ),
+                  child: Transform.rotate(angle: v * 6, child: const Text('🪙', style: TextStyle(fontSize: 44))),
                 ),
               ),
             ],
